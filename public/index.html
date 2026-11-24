@@ -1,0 +1,83 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Мессенджер</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0d1117; color: #c9d1d9; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; }
+    .chat { width: 100%; max-width: 500px; height: 100vh; display: flex; flex-direction: column; background: #161b22; }
+    .messages { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+    .msg { max-width: 80%; padding: 10px 14px; border-radius: 12px; background: #21262d; word-break: break-word; }
+    .msg.own { align-self: flex-end; background: #238636; color: #fff; }
+    .msg img, .msg video { max-width: 100%; border-radius: 8px; margin-top: 5px; }
+    .input-area { display: flex; padding: 10px; gap: 8px; background: #0d1117; border-top: 1px solid #30363d; }
+    .input-area input[type="text"] { flex: 1; padding: 10px; border-radius: 20px; border: 1px solid #30363d; background: #161b22; color: #c9d1d9; }
+    .input-area button { padding: 10px 16px; border: none; border-radius: 20px; background: #238636; color: #fff; cursor: pointer; font-weight: bold; }
+    .input-area label { padding: 10px; background: #21262d; border-radius: 50%; cursor: pointer; font-size: 1.2rem; }
+    .input-area input[type="file"] { display: none; }
+  </style>
+</head>
+<body>
+  <div class="chat">
+    <div class="messages" id="messages"></div>
+    <div class="input-area">
+      <label for="file">📎<input type="file" id="file" accept="image/*,video/*"></label>
+      <input type="text" id="text" placeholder="Сообщение..." autocomplete="off">
+      <button onclick="sendMessage()">➤</button>
+    </div>
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const messages = document.getElementById('messages');
+    const textInput = document.getElementById('text');
+    const fileInput = document.getElementById('file');
+
+    socket.on('message', (data) => {
+      const div = document.createElement('div');
+      div.className = 'msg';
+      if (data.type === 'text') {
+        div.textContent = data.text;
+      } else if (data.type === 'image') {
+        const img = document.createElement('img');
+        img.src = data.url;
+        div.appendChild(img);
+      } else if (data.type === 'video') {
+        const video = document.createElement('video');
+        video.src = data.url;
+        video.controls = true;
+        div.appendChild(video);
+      }
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
+    });
+
+    function sendMessage() {
+      const text = textInput.value.trim();
+      if (text) {
+        socket.emit('message', { type: 'text', text });
+        textInput.value = '';
+      }
+    }
+
+    textInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      const type = file.type.startsWith('image') ? 'image' : 'video';
+      socket.emit('message', { type, url: data.url });
+      fileInput.value = '';
+    });
+  </script>
+</body>
+</html>
